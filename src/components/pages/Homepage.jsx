@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FaArrowLeft, FaArrowRight } from "react-icons/fa";
 import { IoMdInformationCircleOutline } from "react-icons/io";
 import { PiSpeakerSlash } from "react-icons/pi";
@@ -9,6 +9,10 @@ import { Swiper, SwiperSlide } from "swiper/react";
 import "swiper/css/navigation";
 import MovieCard from "../molecules/MovieCard";
 import MovieListPortrait from "../templates/MovieListPortrait";
+import {
+  getTrending, addTrending, updateTrending, deleteTrending,
+  getRilsBaru, addRilsBaru, updateRilsBaru, deleteRilsBaru,
+} from "../../services/api/movieApi";
 
 const movies = [
   { id: 1, title: "Don't Look Up", image: "/img/poster/landscape/landscape10.png", rating: "4.5/5" },
@@ -27,39 +31,40 @@ const MovieTopToday = [
 ];
 
 const Homepage = () => {
-  const [filmTrending, setFilmTrending] = useState([
-    { id: 1, title: "Don't Look Up", image: "/img/poster/portrait/p6.png", rating: "4.5/5" },
-    { id: 2, title: "The Batman", image: "/img/poster/portrait/p7.png", rating: "4.2/5" },
-    { id: 3, title: "Blue Lock", image: "/img/poster/portrait/p11.png", rating: "4.6/5" },
-    { id: 4, title: "A Man Called Otto", image: "/img/poster/portrait/p8.png", rating: "4.4/5" },
-    { id: 5, title: "Shazam!", image: "/img/poster/portrait/p9.png", rating: "4.5/5" },
-  ]);
-
-  const [rilsBaru, setRilsBaru] = useState([
-    { id: 1, title: "The Little Mermaid", image: "/img/poster/portrait/p9.png", rating: "4.5/5" },
-    { id: 2, title: "Duty After School", image: "/img/poster/portrait/p10.png", rating: "4.2/5" },
-    { id: 3, title: "Big Hero 6", image: "/img/poster/portrait/p5.png", rating: "4.6/5" },
-    { id: 4, title: "All of Us Are Dead", image: "/img/poster/portrait/p4.png", rating: "4.4/5" },
-    { id: 5, title: "Missing", image: "/img/poster/portrait/p12.png", rating: "4.5/5" },
-  ]);
-
+  const [filmTrending, setFilmTrending] = useState([]);
+  const [rilsBaru, setRilsBaru] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
   const [activeSection, setActiveSection] = useState("");
   const [selectedFilm, setSelectedFilm] = useState(null);
   const [form, setForm] = useState({ title: "", image: "", rating: "" });
-
   const [konfirmasiOpen, setKonfirmasiOpen] = useState(false);
   const [filmYangAkanDihapus, setFilmYangAkanDihapus] = useState(null);
   const [sectionHapus, setSectionHapus] = useState("");
-
   const [toast, setToast] = useState({ show: false, pesan: "", tipe: "" });
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [trending, rils] = await Promise.all([
+          getTrending(),
+          getRilsBaru(),
+        ]);
+        setFilmTrending(trending);
+        setRilsBaru(rils);
+      } catch (err) {
+        tampilkanToast("Gagal memuat data!", "error");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   const tampilkanToast = (pesan, tipe = "sukses") => {
     setToast({ show: true, pesan, tipe });
-    setTimeout(() => {
-      setToast({ show: false, pesan: "", tipe: "" });
-    }, 3000);
+    setTimeout(() => setToast({ show: false, pesan: "", tipe: "" }), 3000);
   };
 
   const bukaModalTambah = (section) => {
@@ -88,37 +93,39 @@ const Homepage = () => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const tambahFilm = () => {
-    const filmBaru = {
-      id: Date.now(),
-      title: form.title,
-      image: form.image,
-      rating: form.rating,
-    };
-    if (activeSection === "trending") {
-      setFilmTrending([...filmTrending, filmBaru]);
-    } else {
-      setRilsBaru([...rilsBaru, filmBaru]);
+  const tambahFilm = async () => {
+    try {
+      const filmBaru = { title: form.title, image: form.image, rating: form.rating };
+      if (activeSection === "trending") {
+        const result = await addTrending(filmBaru);
+        setFilmTrending((prev) => [...prev, result]);
+      } else {
+        const result = await addRilsBaru(filmBaru);
+        setRilsBaru((prev) => [...prev, result]);
+      }
+      tutupModal();
+      tampilkanToast(`"${form.title}" berhasil ditambahkan!`, "sukses");
+    } catch {
+      tampilkanToast("Gagal menambahkan film!", "error");
     }
-    tutupModal();
-    tampilkanToast(`"${form.title}" berhasil ditambahkan!`, "sukses");
   };
 
-  const editFilm = () => {
-    const judulLama = selectedFilm.title;
-    const update = (list) =>
-      list.map((f) =>
-        f.id === selectedFilm.id
-          ? { ...f, title: form.title, image: form.image, rating: form.rating }
-          : f
-      );
-    if (activeSection === "trending") {
-      setFilmTrending(update(filmTrending));
-    } else {
-      setRilsBaru(update(rilsBaru));
+  const editFilm = async () => {
+    try {
+      const judulLama = selectedFilm.title;
+      const updated = { title: form.title, image: form.image, rating: form.rating };
+      if (activeSection === "trending") {
+        const result = await updateTrending(selectedFilm.id, updated);
+        setFilmTrending((prev) => prev.map((f) => (f.id === selectedFilm.id ? result : f)));
+      } else {
+        const result = await updateRilsBaru(selectedFilm.id, updated);
+        setRilsBaru((prev) => prev.map((f) => (f.id === selectedFilm.id ? result : f)));
+      }
+      tutupModal();
+      tampilkanToast(`"${judulLama}" berhasil diperbarui!`, "sukses");
+    } catch {
+      tampilkanToast("Gagal mengupdate film!", "error");
     }
-    tutupModal();
-    tampilkanToast(`"${judulLama}" berhasil diperbarui!`, "sukses");
   };
 
   const handleSubmit = (e) => {
@@ -146,21 +153,34 @@ const Homepage = () => {
     setSectionHapus("");
   };
 
-  const hapusFilm = () => {
-    const judul = filmYangAkanDihapus.title;
-    if (sectionHapus === "trending") {
-      setFilmTrending(filmTrending.filter((f) => f.id !== filmYangAkanDihapus.id));
-    } else {
-      setRilsBaru(rilsBaru.filter((f) => f.id !== filmYangAkanDihapus.id));
+  const hapusFilm = async () => {
+    try {
+      const judul = filmYangAkanDihapus.title;
+      if (sectionHapus === "trending") {
+        await deleteTrending(filmYangAkanDihapus.id);
+        setFilmTrending((prev) => prev.filter((f) => f.id !== filmYangAkanDihapus.id));
+      } else {
+        await deleteRilsBaru(filmYangAkanDihapus.id);
+        setRilsBaru((prev) => prev.filter((f) => f.id !== filmYangAkanDihapus.id));
+      }
+      tutupKonfirmasi();
+      tampilkanToast(`"${judul}" berhasil dihapus!`, "hapus");
+    } catch {
+      tampilkanToast("Gagal menghapus film!", "error");
     }
-    tutupKonfirmasi();
-    tampilkanToast(`"${judul}" berhasil dihapus!`, "hapus");
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center w-full h-screen bg-[#181A1C]">
+        <p className="text-white text-xl">Memuat data...</p>
+      </div>
+    );
+  }
 
   return (
     <main className="flex flex-col w-full bg-[#181A1C] gap-15">
 
-      {/* Toast notifikasi */}
       {toast.show && (
         <div className={`fixed top-6 right-6 z-[9999] px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium ${
           toast.tipe === "sukses" ? "bg-green-700" :
@@ -171,7 +191,6 @@ const Homepage = () => {
         </div>
       )}
 
-      {/* Hero */}
       <section className="w-full h-[360px] lg:h-[587px] flex justify-center relative">
         <img className="w-full object-cover" src="/img/poster/landscape/hero.png" alt="" />
         <div className="absolute top-0 left-0 right-0 bottom-0 bg-gradient-to-b from-transparent to-[#181A1C] z-10"></div>
@@ -188,9 +207,7 @@ const Homepage = () => {
           <div className="flex flex-row w-full justify-between items-center">
             <div className="flex flex-row gap-2">
               <Button type="button" variant="primary">Mulai</Button>
-              <Button type="button" variant="secondary" iconLeft={<IoMdInformationCircleOutline />}>
-                Selengkapnya
-              </Button>
+              <Button type="button" variant="secondary" iconLeft={<IoMdInformationCircleOutline />}>Selengkapnya</Button>
               <Button type="button" variant="outlined">18+</Button>
             </div>
             <div>
@@ -202,10 +219,8 @@ const Homepage = () => {
         </div>
       </section>
 
-      {/* Daftar film */}
       <section className="w-full flex flex-col gap-10 overflow-hidden">
 
-        {/* Melanjutkan Tonton */}
         <section className="w-full pl-5 pr-0 lg:px-[80px] relative">
           <h2 className="text-white text-xl lg:text-2xl font-bold mb-4">Melanjutkan Tonton Film</h2>
           <Swiper
@@ -233,7 +248,6 @@ const Homepage = () => {
           </div>
         </section>
 
-        {/* Top Rating */}
         <section className="w-full pl-5 pr-0 lg:px-[80px] relative">
           <h2 className="text-white text-xl lg:text-2xl font-bold mb-4">Top Rating Film dan Series Hari ini</h2>
           <Swiper
@@ -261,7 +275,6 @@ const Homepage = () => {
           </div>
         </section>
 
-        {/* Film Trending - CRUD */}
         <MovieListPortrait
           sectionTitle="Film Trending"
           films={filmTrending}
@@ -272,7 +285,6 @@ const Homepage = () => {
           showCRUD={true}
         />
 
-        {/* Rilis Baru - CRUD */}
         <MovieListPortrait
           sectionTitle="Rilis Baru"
           films={rilsBaru}
@@ -285,106 +297,68 @@ const Homepage = () => {
 
       </section>
 
-      {/*STambah / Edit */}
       {modalOpen && (
         <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 px-4">
           <div className="bg-[#2F3334] rounded-xl p-6 w-full max-w-md">
-
             <div className="flex justify-between items-center mb-5">
               <h2 className="text-white text-lg font-bold">
                 {isEdit ? "Edit Film" : "Tambah Film"}
               </h2>
-              <button onClick={tutupModal} className="text-gray-400 hover:text-white text-xl font-bold">
-                x
-              </button>
+              <button onClick={tutupModal} className="text-gray-400 hover:text-white text-xl font-bold">x</button>
             </div>
-
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
                 <label className="text-gray-300 text-sm">Judul Film</label>
-                <input
-                  type="text"
-                  name="title"
-                  value={form.title}
-                  onChange={handleInput}
+                <input type="text" name="title" value={form.title} onChange={handleInput}
                   placeholder="Contoh: Avatar 2"
-                  className="w-full px-4 py-2 rounded-lg bg-[#181A1C] text-white border border-gray-600 focus:outline-none focus:border-blue-500"
-                />
+                  className="w-full px-4 py-2 rounded-lg bg-[#181A1C] text-white border border-gray-600 focus:outline-none focus:border-blue-500" />
               </div>
-
               <div className="flex flex-col gap-1">
                 <label className="text-gray-300 text-sm">URL Gambar</label>
-                <input
-                  type="text"
-                  name="image"
-                  value={form.image}
-                  onChange={handleInput}
+                <input type="text" name="image" value={form.image} onChange={handleInput}
                   placeholder="Contoh: /img/poster/portrait/p1.png"
-                  className="w-full px-4 py-2 rounded-lg bg-[#181A1C] text-white border border-gray-600 focus:outline-none focus:border-blue-500"
-                />
+                  className="w-full px-4 py-2 rounded-lg bg-[#181A1C] text-white border border-gray-600 focus:outline-none focus:border-blue-500" />
               </div>
-
               <div className="flex flex-col gap-1">
                 <label className="text-gray-300 text-sm">Rating</label>
-                <input
-                  type="text"
-                  name="rating"
-                  value={form.rating}
-                  onChange={handleInput}
+                <input type="text" name="rating" value={form.rating} onChange={handleInput}
                   placeholder="Contoh: 4.5/5"
-                  className="w-full px-4 py-2 rounded-lg bg-[#181A1C] text-white border border-gray-600 focus:outline-none focus:border-blue-500"
-                />
+                  className="w-full px-4 py-2 rounded-lg bg-[#181A1C] text-white border border-gray-600 focus:outline-none focus:border-blue-500" />
               </div>
-
               <div className="flex gap-3 mt-2">
-                <button
-                  type="submit"
-                  className="flex-1 bg-[#09147A] hover:bg-[#192DB7] text-white py-2 rounded-2xl font-semibold"
-                >
+                <button type="submit"
+                  className="flex-1 bg-[#09147A] hover:bg-[#192DB7] text-white py-2 rounded-2xl font-semibold">
                   {isEdit ? "Simpan Perubahan" : "Tambah Film"}
                 </button>
-                <button
-                  type="button"
-                  onClick={tutupModal}
-                  className="flex-1 bg-[#3D4142] hover:bg-[#2F3334] text-white py-2 rounded-2xl font-semibold"
-                >
+                <button type="button" onClick={tutupModal}
+                  className="flex-1 bg-[#3D4142] hover:bg-[#2F3334] text-white py-2 rounded-2xl font-semibold">
                   Batal
                 </button>
               </div>
             </form>
-
           </div>
         </div>
       )}
 
-      {/* Konfirmasi Hapus */}
       {konfirmasiOpen && (
         <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 px-4">
           <div className="bg-[#2F3334] rounded-xl p-6 w-full max-w-sm text-center">
-
             <h2 className="text-white text-lg font-bold mb-2">Hapus Film?</h2>
             <p className="text-gray-400 text-sm mb-6">
               Kamu yakin ingin menghapus{" "}
               <span className="text-white font-semibold">"{filmYangAkanDihapus?.title}"</span>?
-              <br />
-              Film yang dihapus tidak bisa dikembalikan.
+              <br />Film yang dihapus tidak bisa dikembalikan.
             </p>
-
             <div className="flex gap-3">
-              <button
-                onClick={hapusFilm}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-2xl font-semibold"
-              >
+              <button onClick={hapusFilm}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-2xl font-semibold">
                 Ya, Hapus
               </button>
-              <button
-                onClick={tutupKonfirmasi}
-                className="flex-1 bg-[#3D4142] hover:bg-[#2F3334] text-white py-2 rounded-2xl font-semibold"
-              >
+              <button onClick={tutupKonfirmasi}
+                className="flex-1 bg-[#3D4142] hover:bg-[#2F3334] text-white py-2 rounded-2xl font-semibold">
                 Batal
               </button>
             </div>
-
           </div>
         </div>
       )}

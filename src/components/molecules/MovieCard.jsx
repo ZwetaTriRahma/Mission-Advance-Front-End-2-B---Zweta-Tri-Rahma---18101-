@@ -23,6 +23,7 @@ const MovieCard = ({
       <div className={`relative w-full h-full rounded-lg overflow-hidden transition-all duration-300 ${isHovered ? "invisible" : "visible"}`}>
         <img src={image} alt={title} className="w-full h-full object-cover" />
         {children}
+
         {!isPortrait && (
           <>
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
@@ -32,6 +33,16 @@ const MovieCard = ({
                 <FaStar className="text-yellow-500" />
                 <span className="text-[14px]">{rating}</span>
               </div>
+            </div>
+          </>
+        )}
+
+        {isPortrait && (
+          <>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
+            <div className="absolute bottom-0 left-0 p-2 text-white w-full">
+              <span className="font-medium text-[10px] lg:text-sm line-clamp-1 block">{title}</span>
+              <span className="text-[8px] lg:text-xs text-gray-300">{rating}</span>
             </div>
           </>
         )}
