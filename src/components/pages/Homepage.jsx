@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { setTrending, setRilsBaru } from "../../store/redux/movieSlice";
 import { FaArrowLeft, FaArrowRight } from "react-icons/fa";
 import { IoMdInformationCircleOutline } from "react-icons/io";
 import { PiSpeakerSlash } from "react-icons/pi";
@@ -14,6 +16,7 @@ import {
   getRilsBaru, addRilsBaru, updateRilsBaru, deleteRilsBaru,
 } from "../../services/api/movieApi";
 
+// data statis buat section melanjutkan tonton
 const movies = [
   { id: 1, title: "Don't Look Up", image: "/img/poster/landscape/landscape10.png", rating: "4.5/5" },
   { id: 2, title: "The Batman", image: "/img/poster/landscape/landscape9.png", rating: "4.2/5" },
@@ -22,6 +25,7 @@ const movies = [
   { id: 5, title: "Shazam!", image: "/img/poster/landscape/landscape1.png", rating: "4.5/5" },
 ];
 
+// data statis buat section top rating
 const MovieTopToday = [
   { id: 1, title: "Don't Look Up", image: "/img/poster/portrait/p1.png", rating: "4.5/5" },
   { id: 2, title: "The Batman", image: "/img/poster/portrait/p2.png", rating: "4.2/5" },
@@ -31,8 +35,12 @@ const MovieTopToday = [
 ];
 
 const Homepage = () => {
-  const [filmTrending, setFilmTrending] = useState([]);
-  const [rilsBaru, setRilsBaru] = useState([]);
+  // ambil dispatch dan data dari redux
+  const dispatch = useDispatch();
+  const filmTrending = useSelector((state) => state.movie.trending);
+  const rilsBaru = useSelector((state) => state.movie.rilsBaru);
+
+  // state buat loading dan modal
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
@@ -44,6 +52,7 @@ const Homepage = () => {
   const [sectionHapus, setSectionHapus] = useState("");
   const [toast, setToast] = useState({ show: false, pesan: "", tipe: "" });
 
+  // fetch data waktu pertama kali halaman dibuka
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -51,8 +60,9 @@ const Homepage = () => {
           getTrending(),
           getRilsBaru(),
         ]);
-        setFilmTrending(trending);
-        setRilsBaru(rils);
+        // simpen ke redux biar bisa diakses komponen lain
+        dispatch(setTrending(trending));
+        dispatch(setRilsBaru(rils));
       } catch (err) {
         tampilkanToast("Gagal memuat data!", "error");
       } finally {
@@ -62,6 +72,7 @@ const Homepage = () => {
     fetchData();
   }, []);
 
+  // munculin notif toast sebentar terus hilang
   const tampilkanToast = (pesan, tipe = "sukses") => {
     setToast({ show: true, pesan, tipe });
     setTimeout(() => setToast({ show: false, pesan: "", tipe: "" }), 3000);
@@ -93,15 +104,16 @@ const Homepage = () => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
+  // tambah film baru ke api terus update redux
   const tambahFilm = async () => {
     try {
       const filmBaru = { title: form.title, image: form.image, rating: form.rating };
       if (activeSection === "trending") {
         const result = await addTrending(filmBaru);
-        setFilmTrending((prev) => [...prev, result]);
+        dispatch(setTrending([...filmTrending, result]));
       } else {
         const result = await addRilsBaru(filmBaru);
-        setRilsBaru((prev) => [...prev, result]);
+        dispatch(setRilsBaru([...rilsBaru, result]));
       }
       tutupModal();
       tampilkanToast(`"${form.title}" berhasil ditambahkan!`, "sukses");
@@ -110,39 +122,23 @@ const Homepage = () => {
     }
   };
 
+  // edit film, cari berdasarkan id terus ganti datanya
   const editFilm = async () => {
     try {
       const judulLama = selectedFilm.title;
       const updated = { title: form.title, image: form.image, rating: form.rating };
       if (activeSection === "trending") {
         const result = await updateTrending(selectedFilm.id, updated);
-        setFilmTrending((prev) => prev.map((f) => (f.id === selectedFilm.id ? result : f)));
+        dispatch(setTrending(filmTrending.map((f) => (f.id === selectedFilm.id ? result : f))));
       } else {
         const result = await updateRilsBaru(selectedFilm.id, updated);
-        setRilsBaru((prev) => prev.map((f) => (f.id === selectedFilm.id ? result : f)));
+        dispatch(setRilsBaru(rilsBaru.map((f) => (f.id === selectedFilm.id ? result : f))));
       }
       tutupModal();
       tampilkanToast(`"${judulLama}" berhasil diperbarui!`, "sukses");
     } catch {
       tampilkanToast("Gagal mengupdate film!", "error");
     }
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!form.title || !form.image || !form.rating) {
-      tampilkanToast("Semua field harus diisi!", "error");
-      return;
-    }
-    if (isEdit) {
-      editFilm();
-    } else {
-      tambahFilm();
-    }
-  };
-
-  const bukaKonfirmasiHapus = (film, section) => {
-    setFilmYangAkanDihapus(film);
     setSectionHapus(section);
     setKonfirmasiOpen(true);
   };
@@ -153,15 +149,16 @@ const Homepage = () => {
     setSectionHapus("");
   };
 
+  // hapus film dari api terus filter dari redux
   const hapusFilm = async () => {
     try {
       const judul = filmYangAkanDihapus.title;
       if (sectionHapus === "trending") {
         await deleteTrending(filmYangAkanDihapus.id);
-        setFilmTrending((prev) => prev.filter((f) => f.id !== filmYangAkanDihapus.id));
+        dispatch(setTrending(filmTrending.filter((f) => f.id !== filmYangAkanDihapus.id)));
       } else {
         await deleteRilsBaru(filmYangAkanDihapus.id);
-        setRilsBaru((prev) => prev.filter((f) => f.id !== filmYangAkanDihapus.id));
+        dispatch(setRilsBaru(rilsBaru.filter((f) => f.id !== filmYangAkanDihapus.id)));
       }
       tutupKonfirmasi();
       tampilkanToast(`"${judul}" berhasil dihapus!`, "hapus");
